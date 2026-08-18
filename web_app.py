@@ -9,11 +9,11 @@ from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.enum.text import MSO_ANCHOR
 from pptx.dml.color import RGBColor
 
-# 設定 API
+# 設定 API (使用標準模型名稱)
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-3.6-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 專業工程配色定義
+# 專業工程配色
 COLOR_BLUE = RGBColor(0, 80, 160)
 COLOR_GREEN = RGBColor(0, 128, 64)
 COLOR_DARK = RGBColor(40, 40, 40)
@@ -25,8 +25,8 @@ uploaded_file = st.file_uploader("📂 上傳施工照片", type=["jpg", "png"])
 
 if uploaded_file is not None:
     st.image(uploaded_file, use_container_width=True)
-    if st.button("🚀 生成與參考圖完全一致的檢核圖"):
-        with st.spinner('專業職安工程師正在精準繪製圖說...'):
+    if st.button("🚀 生成與參考圖完全一致的專業檢核圖"):
+        with st.spinner('專業職安工程師正在規劃圖說...'):
             try:
                 img_pil = Image.open(uploaded_file).convert("RGB")
                 width_px, height_px = img_pil.size
@@ -55,6 +55,7 @@ if uploaded_file is not None:
                 proj_type = data.get("project_type", "施工")
                 checkpoints = data.get("checkpoints", [])
 
+                # 依據物件實際位置動態分邊與排序，保持線條整潔
                 left_items = []
                 right_items = []
                 for item in checkpoints:
@@ -77,7 +78,7 @@ if uploaded_file is not None:
                 img_io.seek(0)
                 slide.shapes.add_picture(img_io, 0, 0, width=prs.slide_width, height=prs.slide_height)
 
-                # 主標題 (圓角矩形)
+                # 左上角主標題 (仿照參考圖樣式)
                 title_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.4), Inches(0.3), Inches(5.2), Inches(0.6))
                 title_box.fill.solid()
                 title_box.fill.fore_color.rgb = COLOR_BLUE
@@ -89,7 +90,7 @@ if uploaded_file is not None:
                 tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
                 tf.vertical_anchor = MSO_ANCHOR.MIDDLE
 
-                # 副標題 (圓角矩形)
+                # 左上角副標題
                 sub_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.4), Inches(0.95), Inches(5.2), Inches(0.45))
                 sub_box.fill.solid()
                 sub_box.fill.fore_color.rgb = COLOR_DARK
@@ -101,47 +102,47 @@ if uploaded_file is not None:
                 tf_sub.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
                 tf_sub.vertical_anchor = MSO_ANCHOR.MIDDLE
 
+                # 繪製卡片的核心函數
                 def draw_cards(items, is_left):
                     base_color = COLOR_BLUE if is_left else COLOR_GREEN
                     card_x = Inches(0.4) if is_left else prs.slide_width - Inches(3.9)
                     
                     for i, item in enumerate(items):
                         card_y = Inches(1.6 + i * 1.6)
-                        # 完全對齊參考圖的圓角矩形卡片
+                        
+                        # 1. 卡片外框 (圓角矩形)
                         card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, card_x, card_y, Inches(3.5), Inches(1.4))
                         card.fill.solid()
                         card.fill.fore_color.rgb = base_color
                         card.line.color.rgb = RGBColor(255, 255, 255)
                         card.line.width = Pt(1.5)
                         
+                        # 2. 標題文字區
                         tf = card.text_frame
                         tf.word_wrap = True
                         tf.vertical_anchor = MSO_ANCHOR.TOP
-                        
-                        # 標題區
                         p_title = tf.paragraphs[0]
                         p_title.text = f"{item.get('label', '')}. {item['title']}"
                         p_title.font.bold = True
-                        p_title.font.size = Pt(13)
+                        p_title.font.size = Pt(14)
                         p_title.font.color.rgb = RGBColor(255, 255, 255)
-                        p_title.space_after = Pt(2)
+                        p_title.space_after = Pt(25) # 預留下方分隔線空間
 
-                        # 標題與內文的分隔線
-                        p_line = tf.add_paragraph()
-                        p_line.text = "────────────────"
-                        p_line.font.size = Pt(8)
-                        p_line.font.color.rgb = RGBColor(255, 255, 255)
-                        p_line.space_after = Pt(2)
+                        # 3. 實體分隔線 (精確控制位置)
+                        line_sep = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, int(card_x + Inches(0.15)), int(card_y + Inches(0.55)), int(card_x + Inches(3.35)), int(card_y + Inches(0.55)))
+                        line_sep.line.color.rgb = RGBColor(255, 255, 255)
+                        line_sep.line.width = Pt(1.5)
 
-                        # 檢核項目內文
+                        # 4. 檢核項目內文
                         for it in item["items"].split('\n'):
                             if it.strip():
                                 p = tf.add_paragraph()
                                 p.text = f"☑ {it.strip()}"
-                                p.font.size = Pt(10)
+                                p.font.size = Pt(10.5)
                                 p.font.color.rgb = RGBColor(255, 255, 255)
-                                p.space_after = Pt(1)
+                                p.space_after = Pt(2)
 
+                        # 5. 連線與圓圈標籤
                         ymin, xmin, ymax, xmax = item["box_2d"]
                         tx = int((xmin + xmax) / 2 / 1000 * prs.slide_width)
                         ty = int((ymin + ymax) / 2 / 1000 * prs.slide_height)
@@ -166,7 +167,7 @@ if uploaded_file is not None:
                 draw_cards(left_items, True)
                 draw_cards(right_items, False)
 
-                # 右下角記錄表格 (圓角矩形框，完全對齊參考圖)
+                # 右下角記錄表格 (圓角矩形)
                 table_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, prs.slide_width - Inches(3.9), prs.slide_height - Inches(1.8), Inches(3.5), Inches(1.5))
                 table_box.fill.solid()
                 table_box.fill.fore_color.rgb = RGBColor(255, 255, 255)
@@ -182,7 +183,7 @@ if uploaded_file is not None:
                 p_th.font.bold = True
                 p_th.font.size = Pt(13)
                 p_th.font.color.rgb = RGBColor(0, 0, 0)
-                p_th.space_after = Pt(2)
+                p_th.space_after = Pt(4)
 
                 p_th2 = tf_table.add_paragraph()
                 p_th2.text = "(項目 | 檢核結果 | 備註)"
