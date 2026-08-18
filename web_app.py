@@ -1,6 +1,5 @@
 import streamlit as st
 import json
-import time
 from io import BytesIO
 import google.generativeai as genai
 from PIL import Image
@@ -10,13 +9,12 @@ from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.enum.text import MSO_ANCHOR
 from pptx.dml.color import RGBColor
 
-# ==========================================
-# 🔑 設定 API (使用穩定的 google-generativeai SDK)
-# ==========================================
+# 設定 API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 定義配色
+# 改用最穩定的 latest 版本名稱
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
+
 COLOR_BLUE = RGBColor(0, 80, 160)
 COLOR_GREEN = RGBColor(0, 128, 64)
 
@@ -28,24 +26,22 @@ uploaded_file = st.file_uploader("📂 上傳施工照片", type=["jpg", "png"])
 if uploaded_file is not None:
     st.image(uploaded_file, use_container_width=True)
     if st.button("🚀 生成專業檢核圖"):
-        with st.spinner('正在繪製專業圖表...'):
+        with st.spinner('正在與 AI 連線並繪製圖表...'):
             try:
                 img_pil = Image.open(uploaded_file).convert("RGB")
                 width_px, height_px = img_pil.size
 
                 prompt = """
                 分析圖片，找出 4-6 個關鍵檢核點。
-                回傳 JSON 陣列: [{"label": "A", "box_2d": [ymin, xmin, ymax, xmax], "title": "標題", "items": "項目一\n項目二"}]
+                回傳嚴格的 JSON 陣列: [{"label": "A", "box_2d": [ymin, xmin, ymax, xmax], "title": "標題", "items": "項目一\n項目二"}]
                 items 內的文字請簡短，不需額外符號。只輸出 JSON，不加其他文字。
                 """
                 
-                # 使用穩定 SDK 的 generate_content
                 response = model.generate_content([img_pil, prompt])
                 
                 text = response.text.replace('```json', '').replace('```', '').strip()
                 boxes_data = json.loads(text)
 
-                # --- 建立 PPTX ---
                 prs = Presentation()
                 prs.slide_height = Inches(7.5) 
                 prs.slide_width = Inches(7.5 * (width_px / height_px))
@@ -56,14 +52,12 @@ if uploaded_file is not None:
                 img_io.seek(0)
                 slide.shapes.add_picture(img_io, 0, 0, width=prs.slide_width, height=prs.slide_height)
 
-                # --- 繪製檢核卡 ---
                 for idx, item in enumerate(boxes_data):
                     is_left = (idx % 2 == 0)
                     base_color = COLOR_BLUE if is_left else COLOR_GREEN
                     card_x = Inches(0.2) if is_left else prs.slide_width - Inches(3.7)
                     card_y = Inches(1.0 + (idx // 2) * 1.5)
 
-                    # 標題框
                     title_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, card_x, card_y, Inches(3.5), Inches(0.5))
                     title_box.fill.solid()
                     title_box.fill.fore_color.rgb = base_color
@@ -73,7 +67,6 @@ if uploaded_file is not None:
                     tf.paragraphs[0].font.bold = True
                     tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
 
-                    # 項目框
                     items_list = item["items"].split('\n')
                     items_height = max(len(items_list) * 0.35 + 0.2, 0.7)
                     items_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, card_x, card_y + Inches(0.5), Inches(3.5), Inches(items_height))
@@ -88,7 +81,6 @@ if uploaded_file is not None:
                         p.font.size = Pt(12)
                         p.font.color.rgb = RGBColor(50, 50, 50)
 
-                    # 連線
                     ymin, xmin, ymax, xmax = item["box_2d"]
                     target_x = int((xmin + xmax) / 2 / 1000 * prs.slide_width)
                     target_y = int((ymin + ymax) / 2 / 1000 * prs.slide_height)
