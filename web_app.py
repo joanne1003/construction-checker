@@ -41,7 +41,8 @@ if uploaded_file is not None:
                 """
                 
                 response = model.generate_content([img_pil, prompt])
-                text = response.text.replace('```json', '').replace('```', '').strip()
+                text = response.text.replace('
+```json', '').replace('```', '').strip()
                 data = json.loads(text)
                 
                 proj_type = data.get("project_type", "工程")
@@ -59,22 +60,24 @@ if uploaded_file is not None:
                 slide.shapes.add_picture(img_io, 0, 0, width=prs.slide_width, height=prs.slide_height)
 
                 # 1. 標題區 (左上角)
-                title_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.4), Inches(0.3), Inches(5.0), Inches(0.6))
+                title_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.4), Inches(0.3), Inches(5.2), Inches(0.6))
                 title_box.fill.solid()
                 title_box.fill.fore_color.rgb = COLOR_BLUE
                 tf = title_box.text_frame
                 tf.text = f"{proj_type}施工簡易檢核圖"
-                tf.paragraphs[0].font.size = Pt(20)
+                tf.paragraphs[0].font.size = Pt(18)
                 tf.paragraphs[0].font.bold = True
                 tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+                tf.vertical_anchor = MSO_ANCHOR.MIDDLE
                 
-                sub_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.4), Inches(0.9), Inches(5.0), Inches(0.4))
+                sub_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.4), Inches(0.95), Inches(5.2), Inches(0.45))
                 sub_box.fill.solid()
                 sub_box.fill.fore_color.rgb = RGBColor(50, 50, 50)
                 tf_sub = sub_box.text_frame
                 tf_sub.text = f"{proj_type}施工檢核要點"
-                tf_sub.paragraphs[0].font.size = Pt(14)
+                tf_sub.paragraphs[0].font.size = Pt(13)
                 tf_sub.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+                tf_sub.vertical_anchor = MSO_ANCHOR.MIDDLE
 
                 # 2. 檢核卡片 (網格佈局)
                 for idx, item in enumerate(boxes_data):
@@ -87,47 +90,76 @@ if uploaded_file is not None:
                     card.fill.solid()
                     card.fill.fore_color.rgb = base_color
                     card.line.width = Pt(1.5)
+                    card.line.color.rgb = RGBColor(255, 255, 255)
 
                     tf = card.text_frame
-                    tf.text = f"{item.get('label', '')}. {item['title']}"
-                    tf.paragraphs[0].font.bold = True
-                    tf.paragraphs[0].font.size = Pt(14)
-                    tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+                    tf.word_wrap = True
+                    tf.vertical_anchor = MSO_ANCHOR.TOP
+                    
+                    p_title = tf.paragraphs[0]
+                    p_title.text = f"{item.get('label', '')}. {item['title']}"
+                    p_title.font.bold = True
+                    p_title.font.size = Pt(13)
+                    p_title.font.color.rgb = RGBColor(255, 255, 255)
+                    p_title.space_after = Pt(3)
 
                     for it in item["items"].split('\n'):
-                        p = tf.add_paragraph()
-                        p.text = f"☑ {it.strip()}"
-                        p.font.size = Pt(11)
-                        p.font.color.rgb = RGBColor(255, 255, 255)
+                        if it.strip():
+                            p = tf.add_paragraph()
+                            p.text = f"☑ {it.strip()}"
+                            p.font.size = Pt(10.5)
+                            p.font.color.rgb = RGBColor(255, 255, 255)
+                            p.space_after = Pt(1)
 
-                    # 引導線
+                    # 引導線與標記點
                     ymin, xmin, ymax, xmax = item["box_2d"]
                     tx = int((xmin + xmax) / 2 / 1000 * prs.slide_width)
                     ty = int((ymin + ymax) / 2 / 1000 * prs.slide_height)
                     lx = int(card_x + Inches(3.5)) if is_left else int(card_x)
-                    line = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, lx, int(card_y + Inches(0.6)), tx, ty)
+                    
+                    line = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, lx, int(card_y + Inches(0.65)), tx, ty)
                     line.line.color.rgb = RGBColor(255, 255, 255)
                     line.line.width = Pt(2)
 
-                    # 標籤圈
-                    circle = slide.shapes.add_shape(MSO_SHAPE.OVAL, tx-10, ty-10, 20, 20)
+                    circle = slide.shapes.add_shape(MSO_SHAPE.OVAL, tx-12, ty-12, 24, 24)
                     circle.fill.solid()
                     circle.fill.fore_color.rgb = base_color
-                    circle.text_frame.text = item.get('label', '')
+                    circle.line.color.rgb = RGBColor(255, 255, 255)
+                    circle.line.width = Pt(1.5)
+                    tf_c = circle.text_frame
+                    tf_c.text = item.get('label', '')
+                    tf_c.paragraphs[0].font.size = Pt(11)
+                    tf_c.paragraphs[0].font.bold = True
+                    tf_c.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+                    tf_c.vertical_anchor = MSO_ANCHOR.MIDDLE
 
-                # 3. 現場檢核結果記錄 (右下角固定表格)
+                # 3. 現場檢核結果記錄 (右下角固定表格，修正排版與文字擠壓)
                 table_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, prs.slide_width - Inches(3.9), prs.slide_height - Inches(1.8), Inches(3.5), Inches(1.5))
                 table_box.fill.solid()
                 table_box.fill.fore_color.rgb = RGBColor(255, 255, 255)
+                table_box.line.color.rgb = RGBColor(100, 100, 100)
                 table_box.line.width = Pt(1.5)
+                
                 tf_table = table_box.text_frame
-                tf_table.text = "現場檢核結果記錄\n(項目 | 檢核結果 | 備註)\n\n\n\n"
-                tf_table.paragraphs[0].font.bold = True
+                tf_table.word_wrap = True
+                tf_table.vertical_anchor = MSO_ANCHOR.TOP
+                
+                p_th = tf_table.paragraphs[0]
+                p_th.text = "現場檢核結果記錄"
+                p_th.font.bold = True
+                p_th.font.size = Pt(13)
+                p_th.font.color.rgb = RGBColor(0, 0, 0)
+                p_th.space_after = Pt(2)
+
+                p_th2 = tf_table.add_paragraph()
+                p_th2.text = "(項目 | 檢核結果 | 備註)"
+                p_th2.font.size = Pt(10)
+                p_th2.font.color.rgb = RGBColor(100, 100, 100)
 
                 pptx_io = BytesIO()
                 prs.save(pptx_io)
                 pptx_io.seek(0)
-                st.success("✅ 專業工程檢核圖生成成功！")
+                st.success("✅ 修正完畢！報告生成成功。")
                 st.download_button("📥 下載專業檢核報告", pptx_io, "專業工安檢核圖.pptx")
             except Exception as e:
                 st.error(f"錯誤: {e}")
