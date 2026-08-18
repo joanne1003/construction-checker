@@ -11,7 +11,7 @@ from pptx.enum.text import MSO_ANCHOR
 from pptx.dml.color import RGBColor
 
 # ==========================================
-# 🔑 設定 API Key (從 Streamlit Cloud Secrets 讀取)
+# 🔑 設定 API Key
 # ==========================================
 API_KEY = st.secrets["GEMINI_API_KEY"]
 client = genai.Client(api_key=API_KEY)
@@ -39,9 +39,9 @@ if uploaded_file is not None:
                 items 內的文字請簡短，不需額外符號。只輸出 JSON，不加其他文字。
                 """
                 
-                # 改用配額穩定的 gemini-1.5-flash 模型
+                # 【關鍵修正】：去掉 models/ 前綴，改為最通用的模型名稱
                 response = client.models.generate_content(
-                    model="models/gemini-1.5-flash", 
+                    model="gemini-1.5-flash", 
                     contents=[img_pil, prompt]
                 )
                 
@@ -60,14 +60,14 @@ if uploaded_file is not None:
                 img_io.seek(0)
                 slide.shapes.add_picture(img_io, 0, 0, width=prs.slide_width, height=prs.slide_height)
 
-                # --- 繪製網格檢核卡 ---
+                # --- 繪製檢核卡 ---
                 for idx, item in enumerate(boxes_data):
                     is_left = (idx % 2 == 0)
                     base_color = COLOR_BLUE if is_left else COLOR_GREEN
                     card_x = Inches(0.2) if is_left else prs.slide_width - Inches(3.7)
                     card_y = Inches(1.0 + (idx // 2) * 1.5)
 
-                    # 1. 繪製標題區 (深色)
+                    # 1. 標題
                     title_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, card_x, card_y, Inches(3.5), Inches(0.5))
                     title_box.fill.solid()
                     title_box.fill.fore_color.rgb = base_color
@@ -78,7 +78,7 @@ if uploaded_file is not None:
                     tf.paragraphs[0].font.bold = True
                     tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
 
-                    # 2. 繪製項目區 (淺灰底區分)
+                    # 2. 項目
                     items_list = item["items"].split('\n')
                     items_height = max(len(items_list) * 0.35 + 0.2, 0.7)
                     items_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, card_x, card_y + Inches(0.5), Inches(3.5), Inches(items_height))
@@ -95,7 +95,7 @@ if uploaded_file is not None:
                         p.font.color.rgb = RGBColor(50, 50, 50)
                         p.space_after = Pt(2)
 
-                    # 3. 繪製連接線與標籤
+                    # 3. 連線
                     ymin, xmin, ymax, xmax = item["box_2d"]
                     target_x = int((xmin + xmax) / 2 / 1000 * prs.slide_width)
                     target_y = int((ymin + ymax) / 2 / 1000 * prs.slide_height)
@@ -107,6 +107,7 @@ if uploaded_file is not None:
                     line.line.color.rgb = RGBColor(255, 255, 255)
                     line.line.width = Pt(3) 
 
+                    # 標籤圈
                     circle = slide.shapes.add_shape(MSO_SHAPE.OVAL, target_x - Inches(0.15), target_y - Inches(0.15), Inches(0.3), Inches(0.3))
                     circle.fill.solid()
                     circle.fill.fore_color.rgb = base_color
