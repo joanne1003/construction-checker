@@ -11,7 +11,7 @@ from pptx.dml.color import RGBColor
 
 # 設定 API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-3.6-flash')
 
 # 配色定義
 COLOR_BLUE = RGBColor(0, 80, 160)
@@ -59,7 +59,6 @@ if uploaded_file is not None:
                 slide.shapes.add_picture(img_io, 0, 0, width=prs.slide_width, height=prs.slide_height)
 
                 # 1. 標題區 (左上角)
-                # 主標題
                 title_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.4), Inches(0.3), Inches(5.0), Inches(0.6))
                 title_box.fill.solid()
                 title_box.fill.fore_color.rgb = COLOR_BLUE
@@ -69,7 +68,6 @@ if uploaded_file is not None:
                 tf.paragraphs[0].font.bold = True
                 tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
                 
-                # 副標題 (深灰色底)
                 sub_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.4), Inches(0.9), Inches(5.0), Inches(0.4))
                 sub_box.fill.solid()
                 sub_box.fill.fore_color.rgb = RGBColor(50, 50, 50)
