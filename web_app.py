@@ -9,16 +9,13 @@ from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
 from pptx.enum.text import MSO_ANCHOR
 from pptx.dml.color import RGBColor
 
+# 設定 API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-def get_model():
-    try:
-        return genai.GenerativeModel('gemini-1.5-flash')
-    except:
-        return genai.GenerativeModel('gemini-pro')
+# 使用指定的最新可用模型
+model = genai.GenerativeModel('gemini-3.6-flash')
 
-model = get_model()
-
+# 專業工程配色定義
 COLOR_BLUE = RGBColor(0, 80, 160)
 COLOR_GREEN = RGBColor(0, 128, 64)
 COLOR_DARK = RGBColor(40, 40, 40)
@@ -60,6 +57,7 @@ if uploaded_file is not None:
                 proj_type = data.get("project_type", "施工")
                 checkpoints = data.get("checkpoints", [])
 
+                # 依據物件實際位置動態分邊與排序，確保線條整潔不交錯
                 left_items = []
                 right_items = []
                 for item in checkpoints:
@@ -82,6 +80,7 @@ if uploaded_file is not None:
                 img_io.seek(0)
                 slide.shapes.add_picture(img_io, 0, 0, width=prs.slide_width, height=prs.slide_height)
 
+                # 左上角主標題
                 title_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.4), Inches(0.3), Inches(5.2), Inches(0.6))
                 title_box.fill.solid()
                 title_box.fill.fore_color.rgb = COLOR_BLUE
@@ -93,6 +92,7 @@ if uploaded_file is not None:
                 tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
                 tf.vertical_anchor = MSO_ANCHOR.MIDDLE
 
+                # 左上角副標題
                 sub_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.4), Inches(0.92), Inches(5.2), Inches(0.45))
                 sub_box.fill.solid()
                 sub_box.fill.fore_color.rgb = COLOR_DARK
@@ -159,6 +159,7 @@ if uploaded_file is not None:
                 draw_cards(left_items, True)
                 draw_cards(right_items, False)
 
+                # 右下角單一檢核結果記錄表格
                 table_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, prs.slide_width - Inches(3.9), prs.slide_height - Inches(1.8), Inches(3.5), Inches(1.5))
                 table_box.fill.solid()
                 table_box.fill.fore_color.rgb = RGBColor(255, 255, 255)
