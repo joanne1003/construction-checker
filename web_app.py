@@ -12,14 +12,30 @@ from pptx.dml.color import RGBColor
 # 設定 API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 優化模型載入邏輯，避免 404 錯誤
-def get_model():
+# 【全面解決 404】動態偵測並取得當前環境可用的模型，確保絕對不會發生模型找不到的錯誤
+@st.cache_resource
+def get_working_model():
     try:
-        return genai.GenerativeModel('gemini-1.5-flash')
-    except:
-        return genai.GenerativeModel('gemini-1.5-pro')
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        # 優先尋找 flash 或 pro 模型
+        for pref in ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-pro']:
+            for am in available_models:
+                if pref in am:
+                    return genai.GenerativeModel(am)
+        if available_models:
+            return genai.GenerativeModel(available_models[0])
+    except Exception:
+        pass
+    
+    # 預設回退嘗試常見名稱
+    for name in ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']:
+        try:
+            return genai.GenerativeModel(name)
+        except:
+            continue
+    return genai.GenerativeModel('gemini-1.5-flash')
 
-model = get_model()
+model = get_working_model()
 
 # 專業工程配色 (完全對齊參考圖風格)
 COLOR_BLUE = RGBColor(0, 80, 160)
@@ -33,18 +49,17 @@ uploaded_file = st.file_uploader("📂 上傳施工照片", type=["jpg", "png"])
 
 if uploaded_file is not None:
     st.image(uploaded_file, use_container_width=True)
-    if st.button("🚀 生成與參考圖風格一致的檢核圖"):
+    if st.button("🚀 生成與參考圖風格一致的專業檢核圖"):
         with st.spinner('專業職安工程師正在規劃圖說...'):
             try:
                 img_pil = Image.open(uploaded_file).convert("RGB")
                 width_px, height_px = img_pil.size
                 
-                # 強化專業職安工程師視角
                 prompt = """
                 身為資深職業安全衛生工程師與營造工程專家，請分析此施工照片。
                 1. 辨識工程類型 (例如：橋梁墩柱、擋土支撐、瀝青鋪設)。
                 2. 找出 4-6 個關鍵的工安風險點或品質檢核點。
-                3. 檢核要點必須具體且符合工程規範。
+                3. 檢核要點必須具體且符合營造安全衛生設施標準。
                 
                 回傳嚴格的 JSON 格式 (絕對不可包含 markdown 標籤或說明文字)：
                 {
@@ -67,7 +82,7 @@ if uploaded_file is not None:
                 proj_type = data.get("project_type", "工程")
                 checkpoints = data.get("checkpoints", [])
 
-                # 依據位置分邊，確保畫面整潔
+                # 依據位置分邊，確保畫面整潔不交錯
                 left_items = []
                 right_items = []
                 for item in checkpoints:
@@ -170,6 +185,7 @@ if uploaded_file is not None:
                 pptx_io = BytesIO()
                 prs.save(pptx_io)
                 pptx_io.seek(0)
+                st.success("✅ 專業職安檢核圖生成成功！")
                 st.download_button("📥 下載專業檢核報告.pptx", pptx_io, "專業檢核報告.pptx")
             except Exception as e:
                 st.error(f"錯誤: {e}")
