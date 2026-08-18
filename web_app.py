@@ -6,7 +6,8 @@ from google import genai
 from PIL import Image
 from pptx import Presentation
 from pptx.util import Inches, Pt
-from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR, MSO_TEXT_FRAME_ANCHOR
+from pptx.enum.shapes import MSO_SHAPE, MSO_CONNECTOR
+from pptx.enum.text import MSO_ANCHOR
 from pptx.dml.color import RGBColor
 
 # ==========================================
@@ -90,14 +91,14 @@ if uploaded_file is not None:
                     box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, width, Inches(0.8))
                     box.fill.solid()
                     box.fill.fore_color.rgb = color
-                    box.line.color.rgb = RGBColor(255, 255, 255) # 加上白邊更清晰
+                    box.line.color.rgb = RGBColor(255, 255, 255)
                     box.line.width = Pt(2)
                     tf = box.text_frame
                     tf.text = text
                     tf.paragraphs[0].font.size = Pt(24)
                     tf.paragraphs[0].font.bold = True
                     tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
-                    tf.vertical_anchor = MSO_TEXT_FRAME_ANCHOR.MIDDLE
+                    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
 
                 # 繪製主標題
                 draw_header("施工簡易檢核圖", Inches(0.2), Inches(0.2), Inches(5.5), COLOR_BLUE)
@@ -107,7 +108,7 @@ if uploaded_file is not None:
                 sign_box_x = prs.slide_width - Inches(0.2) - sign_box_width
                 sign_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, sign_box_x, Inches(0.2), sign_box_width, Inches(0.8))
                 sign_box.fill.solid()
-                sign_box.fill.fore_color.rgb = RGBColor(80, 80, 80) # 深灰色
+                sign_box.fill.fore_color.rgb = RGBColor(80, 80, 80)
                 sign_box.line.color.rgb = RGBColor(255, 255, 255)
                 sign_box.line.width = Pt(2)
                 tf_sign = sign_box.text_frame
@@ -123,27 +124,23 @@ if uploaded_file is not None:
                 card_height = Inches(1.3)
                 
                 for idx, item in enumerate(boxes_data):
-                    is_left = (idx % 2 == 0) # 偶數放左邊，奇數放右邊
+                    is_left = (idx % 2 == 0)
                     color = COLOR_BLUE if is_left else COLOR_GREEN
                     
                     card_x = Inches(0.2) if is_left else prs.slide_width - Inches(0.2) - card_width
-                    card_y = Inches(1.2 + (idx // 2) * 1.5) # 每一列放左右兩個，依序往下排
+                    card_y = Inches(1.2 + (idx // 2) * 1.5)
                     
-                    # 取得 AI 辨識的目標座標
                     ymin, xmin, ymax, xmax = item["box_2d"]
                     target_x = int((xmin + xmax) / 2 / 1000 * prs.slide_width)
                     target_y = int((ymin + ymax) / 2 / 1000 * prs.slide_height)
                     
-                    # 設定連接線起點 (左側框的右邊，右側框的左邊)
                     line_start_x = int(card_x + card_width) if is_left else int(card_x)
                     line_start_y = int(card_y + card_height / 2)
                     
-                    # 繪製連接線
                     connector = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, line_start_x, line_start_y, target_x, target_y)
                     connector.line.color.rgb = RGBColor(255, 255, 255)
                     connector.line.width = Pt(3) 
 
-                    # 繪製目標點的小圓圈標籤 (A, B, C...)
                     circle_size = Inches(0.3)
                     circle = slide.shapes.add_shape(MSO_SHAPE.OVAL, target_x - circle_size/2, target_y - circle_size/2, circle_size, circle_size)
                     circle.fill.solid()
@@ -155,9 +152,8 @@ if uploaded_file is not None:
                     tf_circle.paragraphs[0].font.size = Pt(12)
                     tf_circle.paragraphs[0].font.bold = True
                     tf_circle.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
-                    tf_circle.vertical_anchor = MSO_TEXT_FRAME_ANCHOR.MIDDLE
+                    tf_circle.vertical_anchor = MSO_ANCHOR.MIDDLE
 
-                    # 繪製檢核方框
                     box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, card_x, card_y, card_width, card_height)
                     box.fill.solid()
                     box.fill.fore_color.rgb = color
@@ -167,17 +163,14 @@ if uploaded_file is not None:
                     tf = box.text_frame
                     tf.word_wrap = True
                     
-                    # 組合標題 (例如：4. 預埋件與孔洞)
                     title_text = f"{item.get('label', '')}. {item['title']}"
-                    
                     p_title = tf.paragraphs[0]
                     p_title.text = title_text
                     p_title.font.bold = True
                     p_title.font.size = Pt(16)
                     p_title.font.color.rgb = RGBColor(255, 255, 255)
                     
-                    # 項目清單 (加上 ☑ 符號)
-                    items_text = item["items"].replace('☑', '').replace('- ', '') # 先清除可能原有的符號
+                    items_text = item["items"].replace('☑', '').replace('- ', '')
                     items_list = items_text.split('\n')
                     formatted_items = '\n'.join([f"☑ {it.strip()}" for it in items_list if it.strip()])
                     
@@ -186,7 +179,6 @@ if uploaded_file is not None:
                     p_items.font.size = Pt(12)
                     p_items.font.color.rgb = RGBColor(255, 255, 255)
 
-                # 提供下載
                 pptx_io = BytesIO()
                 prs.save(pptx_io)
                 pptx_io.seek(0)
