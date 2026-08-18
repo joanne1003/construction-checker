@@ -19,7 +19,6 @@ client = genai.Client(api_key=API_KEY)
 # 定義專業工程配色
 COLOR_BLUE = RGBColor(0, 80, 160)
 COLOR_GREEN = RGBColor(0, 128, 64)
-COLOR_DIVIDER = RGBColor(255, 255, 255)
 
 st.set_page_config(page_title="專業工地檢核生成器", page_icon="🏗️")
 st.title("🏗️ 專業工程檢核圖生成器")
@@ -37,10 +36,17 @@ if uploaded_file is not None:
                 prompt = """
                 分析圖片，找出 4-6 個關鍵檢核點。
                 回傳 JSON 陣列: [{"label": "A", "box_2d": [ymin, xmin, ymax, xmax], "title": "標題", "items": "項目一\n項目二"}]
-                items 內的文字請簡短，不需額外符號。
+                items 內的文字請簡短，不需額外符號。只輸出 JSON，不加其他文字。
                 """
-                response = client.models.generate_content(model="models/gemini-flash-latest", contents=[img_pil, prompt])
-                boxes_data = json.loads(response.text.replace('```json', '').replace('```', '').strip())
+                
+                # 改用配額穩定的 gemini-1.5-flash 模型
+                response = client.models.generate_content(
+                    model="models/gemini-1.5-flash", 
+                    contents=[img_pil, prompt]
+                )
+                
+                text = response.text.replace('```json', '').replace('```', '').strip()
+                boxes_data = json.loads(text)
 
                 # --- 建立 PPTX ---
                 prs = Presentation()
@@ -56,7 +62,6 @@ if uploaded_file is not None:
 
                 # --- 繪製網格檢核卡 ---
                 for idx, item in enumerate(boxes_data):
-                    # 強制左右兩列排版
                     is_left = (idx % 2 == 0)
                     base_color = COLOR_BLUE if is_left else COLOR_GREEN
                     card_x = Inches(0.2) if is_left else prs.slide_width - Inches(3.7)
@@ -73,12 +78,12 @@ if uploaded_file is not None:
                     tf.paragraphs[0].font.bold = True
                     tf.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
 
-                    # 2. 繪製項目區 (淺色底或白色)
+                    # 2. 繪製項目區 (淺灰底區分)
                     items_list = item["items"].split('\n')
-                    items_height = len(items_list) * 0.35 + 0.2
+                    items_height = max(len(items_list) * 0.35 + 0.2, 0.7)
                     items_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, card_x, card_y + Inches(0.5), Inches(3.5), Inches(items_height))
                     items_box.fill.solid()
-                    items_box.fill.fore_color.rgb = RGBColor(240, 240, 240) # 淺灰底區分
+                    items_box.fill.fore_color.rgb = RGBColor(240, 240, 240)
                     items_box.line.color.rgb = RGBColor(255, 255, 255)
                     
                     tf_items = items_box.text_frame
@@ -90,12 +95,11 @@ if uploaded_file is not None:
                         p.font.color.rgb = RGBColor(50, 50, 50)
                         p.space_after = Pt(2)
 
-                    # 3. 繪製連接線與標籤 (乾淨導引)
+                    # 3. 繪製連接線與標籤
                     ymin, xmin, ymax, xmax = item["box_2d"]
                     target_x = int((xmin + xmax) / 2 / 1000 * prs.slide_width)
                     target_y = int((ymin + ymax) / 2 / 1000 * prs.slide_height)
                     
-                    # 線從卡片側邊連出
                     line_start_x = int(card_x + Inches(3.5)) if is_left else int(card_x)
                     line_start_y = int(card_y + Inches(0.4))
                     
@@ -103,10 +107,10 @@ if uploaded_file is not None:
                     line.line.color.rgb = RGBColor(255, 255, 255)
                     line.line.width = Pt(3) 
 
-                    # 標籤圈
                     circle = slide.shapes.add_shape(MSO_SHAPE.OVAL, target_x - Inches(0.15), target_y - Inches(0.15), Inches(0.3), Inches(0.3))
                     circle.fill.solid()
                     circle.fill.fore_color.rgb = base_color
+                    circle.line.color.rgb = RGBColor(255, 255, 255)
                     circle.text_frame.text = item.get('label', '')
                     circle.text_frame.paragraphs[0].font.size = Pt(12)
                     circle.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
@@ -114,6 +118,7 @@ if uploaded_file is not None:
                 pptx_io = BytesIO()
                 prs.save(pptx_io)
                 pptx_io.seek(0)
+                st.success("✅ 專業檢核報告生成成功！")
                 st.download_button("📥 下載專業檢核報告", pptx_io, "專業工安檢核圖.pptx")
             except Exception as e:
                 st.error(f"錯誤: {e}")
