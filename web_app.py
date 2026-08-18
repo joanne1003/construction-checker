@@ -12,12 +12,10 @@ from pptx.dml.color import RGBColor
 # 設定 API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 【全面解決 404】動態偵測並取得當前環境可用的模型，確保絕對不會發生模型找不到的錯誤
 @st.cache_resource
 def get_working_model():
     try:
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        # 優先尋找 flash 或 pro 模型
         for pref in ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-pro']:
             for am in available_models:
                 if pref in am:
@@ -27,7 +25,6 @@ def get_working_model():
     except Exception:
         pass
     
-    # 預設回退嘗試常見名稱
     for name in ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']:
         try:
             return genai.GenerativeModel(name)
@@ -127,7 +124,6 @@ if uploaded_file is not None:
                     
                     for i, item in enumerate(items):
                         card_y = Inches(1.6 + i * 1.6)
-                        # 圓角矩形卡片
                         card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, card_x, card_y, Inches(3.5), Inches(1.4))
                         card.fill.solid()
                         card.fill.fore_color.rgb = base_color
@@ -137,20 +133,17 @@ if uploaded_file is not None:
                         tf = card.text_frame
                         tf.vertical_anchor = MSO_ANCHOR.TOP
                         
-                        # 標題 (加粗大字)
                         p = tf.paragraphs[0]
                         p.text = f"{item.get('label', '')}. {item['title']}"
                         p.font.bold = True
                         p.font.size = Pt(13)
                         p.font.color.rgb = RGBColor(255, 255, 255)
-                        p.space_after = Pt(25) # 預留空間給分隔線
+                        p.space_after = Pt(25)
 
-                        # 實體分隔線
                         line_sep = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, int(card_x + Inches(0.15)), int(card_y + Inches(0.6)), int(card_x + Inches(3.35)), int(card_y + Inches(0.6)))
                         line_sep.line.color.rgb = RGBColor(255, 255, 255)
                         line_sep.line.width = Pt(1.5)
 
-                        # 檢核內容
                         for it in item["items"].split('\n'):
                             if it.strip():
                                 p = tf.add_paragraph()
@@ -158,7 +151,6 @@ if uploaded_file is not None:
                                 p.font.size = Pt(10.5)
                                 p.font.color.rgb = RGBColor(255, 255, 255)
                         
-                        # 引導線
                         ymin, xmin, ymax, xmax = item["box_2d"]
                         tx = int((xmin + xmax) / 2 / 1000 * prs.slide_width)
                         ty = int((ymin + ymax) / 2 / 1000 * prs.slide_height)
@@ -167,7 +159,6 @@ if uploaded_file is not None:
                         line.line.color.rgb = RGBColor(255, 255, 255)
                         line.line.width = Pt(2)
                         
-                        # 圓圈
                         circle = slide.shapes.add_shape(MSO_SHAPE.OVAL, tx-12, ty-12, 24, 24)
                         circle.fill.solid()
                         circle.fill.fore_color.rgb = base_color
@@ -176,7 +167,6 @@ if uploaded_file is not None:
                 draw_cards(left_items, True)
                 draw_cards(right_items, False)
 
-                # 表格
                 table = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, prs.slide_width - Inches(3.9), prs.slide_height - Inches(1.8), Inches(3.5), Inches(1.5))
                 table.fill.solid()
                 table.fill.fore_color.rgb = RGBColor(255, 255, 255)
@@ -188,4 +178,8 @@ if uploaded_file is not None:
                 st.success("✅ 專業職安檢核圖生成成功！")
                 st.download_button("📥 下載專業檢核報告.pptx", pptx_io, "專業檢核報告.pptx")
             except Exception as e:
-                st.error(f"錯誤: {e}")
+                err_msg = str(e)
+                if "429" in err_msg or "Quota exceeded" in err_msg:
+                    st.warning("⚠️ **API 額度已達上限 (429 Quota Exceeded)**\n\n這代表您在短時間內的請求次數或 Token 已用完（免費帳號每分鐘有請求限制）。**請靜候約 50 秒至 1 分鐘後再點擊生成**，即可恢復正常！")
+                else:
+                    st.error(f"發生錯誤: {err_msg}")
