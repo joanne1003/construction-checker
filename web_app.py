@@ -12,8 +12,18 @@ from pptx.dml.color import RGBColor
 # 設定 API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# 改用最穩定的 latest 版本名稱
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+# 自動尋找可用的模型，避免 404 錯誤
+def get_model():
+    candidates = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro', 'gemini-flash']
+    for name in candidates:
+        try:
+            m = genai.GenerativeModel(name)
+            return m
+        except Exception:
+            continue
+    return genai.GenerativeModel('gemini-1.5-flash')
+
+model = get_model()
 
 COLOR_BLUE = RGBColor(0, 80, 160)
 COLOR_GREEN = RGBColor(0, 128, 64)
