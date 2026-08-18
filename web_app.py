@@ -41,8 +41,9 @@ if uploaded_file is not None:
                 """
                 
                 response = model.generate_content([img_pil, prompt])
-                text = response.text.replace('
-```json', '').replace('```', '').strip()
+                
+                # 【已修正】確保字串處理在同一行，避免 SyntaxError
+                text = response.text.replace('```json', '').replace('```', '').strip()
                 data = json.loads(text)
                 
                 proj_type = data.get("project_type", "工程")
@@ -133,7 +134,7 @@ if uploaded_file is not None:
                     tf_c.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
                     tf_c.vertical_anchor = MSO_ANCHOR.MIDDLE
 
-                # 3. 現場檢核結果記錄 (右下角固定表格，修正排版與文字擠壓)
+                # 3. 現場檢核結果記錄 (右下角固定表格)
                 table_box = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, prs.slide_width - Inches(3.9), prs.slide_height - Inches(1.8), Inches(3.5), Inches(1.5))
                 table_box.fill.solid()
                 table_box.fill.fore_color.rgb = RGBColor(255, 255, 255)
