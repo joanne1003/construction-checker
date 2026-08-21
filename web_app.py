@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+import time
 from io import BytesIO
 import google.generativeai as genai
 from PIL import Image
@@ -47,9 +48,15 @@ uploaded_file = st.file_uploader("📂 上傳施工照片", type=["jpg", "png"])
 if uploaded_file is not None:
     st.image(uploaded_file, use_container_width=True)
     if st.button("🚀 生成與參考圖風格一致的專業檢核圖"):
-        with st.spinner('專業職安工程師正在規劃圖說...'):
+        with st.spinner('專業職安工程師正在規劃圖說（若遇限流將自動重試）...'):
             try:
                 img_pil = Image.open(uploaded_file).convert("RGB")
+                
+                # 【優化】圖片尺寸自動縮放（限制最大邊長 1200px），大幅降低 Token 消耗、避免觸發 429
+                max_dim = 1200
+                if max(img_pil.size) > max_dim:
+                    img_pil.thumbnail((max_dim, max_dim))
+                
                 width_px, height_px = img_pil.size
                 
                 prompt = """
@@ -72,7 +79,20 @@ if uploaded_file is not None:
                 }
                 """
                 
-                response = model.generate_content([img_pil, prompt])
+                # 【優化】加入自動重試機制 (Auto-retry for 429 Quota Exceeded)
+                max_retries = 3
+                response = None
+                for attempt in range(max_retries):
+                    try:
+                        response = model.generate_content([img_pil, prompt])
+                        break
+                    except Exception as api_err:
+                        err_str = str(api_err)
+                        if ("429" in err_str or "Quota exceeded" in err_str) and attempt < max_retries - 1:
+                            time.sleep(15 * (attempt + 1))  # 遞增等待 15秒、30秒
+                            continue
+                        raise api_err
+
                 text = response.text.replace('```json', '').replace('```', '').strip()
                 data = json.loads(text)
                 
@@ -180,6 +200,6 @@ if uploaded_file is not None:
             except Exception as e:
                 err_msg = str(e)
                 if "429" in err_msg or "Quota exceeded" in err_msg:
-                    st.warning("⚠️ **API 額度已達上限 (429 Quota Exceeded)**\n\n這代表您在短時間內的請求次數或 Token 已用完（免費帳號每分鐘有請求限制）。**請靜候約 50 秒至 1 分鐘後再點擊生成**，即可恢復正常！")
+                    st.warning("⚠️ **已達到免費 API 請求上限 (429 Quota Exceeded)**\n\n系統已嘗試自動重試但仍超過限制。建議**稍候約 1 分鐘**再點擊生成，或是前往 Google AI Studio 檢查您的 API 額度。")
                 else:
                     st.error(f"發生錯誤: {err_msg}")
